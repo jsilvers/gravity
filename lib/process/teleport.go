@@ -151,6 +151,10 @@ func (p *Process) proxySettings() client.ProxySettings {
 		SSH: client.SSHProxySettings{
 			ListenAddr: p.teleportConfig.Proxy.SSHAddr.String(),
 		},
+		Features: []string{
+			client.FeatureDocker,
+			client.FeatureHelm,
+		},
 	}
 	if len(p.teleportConfig.Proxy.Kube.PublicAddrs) > 0 {
 		settings.Kube.PublicAddr = p.teleportConfig.Proxy.Kube.PublicAddrs[0].String()

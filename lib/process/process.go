@@ -1046,7 +1046,6 @@ func (p *Process) initService(ctx context.Context) (err error) {
 		ProxySSHAddr:  p.teleportConfig.Proxy.SSHAddr,
 		ProxyWebAddr:  p.teleportConfig.Proxy.WebAddr,
 		ProxySettings: p.proxySettings(),
-		// ServerFeatures: []string{"docker", "helm"},
 	})
 	if err != nil {
 		return trace.Wrap(err)
