@@ -1046,6 +1046,7 @@ func (p *Process) initService(ctx context.Context) (err error) {
 		ProxySSHAddr:  p.teleportConfig.Proxy.SSHAddr,
 		ProxyWebAddr:  p.teleportConfig.Proxy.WebAddr,
 		ProxySettings: p.proxySettings(),
+		// ServerFeatures: []string{"docker", "helm"},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1197,8 +1198,9 @@ func (p *Process) initService(ctx context.Context) (err error) {
 
 	if p.inKubernetes() {
 		p.handlers.Registry, err = docker.NewRegistry(docker.Config{
-			Context: ctx,
-			Users:   p.identity,
+			Context:       ctx,
+			Users:         p.identity,
+			Authenticator: authenticator,
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gravitational/gravity/lib/httplib"
 	"github.com/gravitational/gravity/lib/users"
 
 	"github.com/docker/distribution/context"
@@ -44,24 +43,24 @@ func init() {
 //
 // Implements docker/distribution/registry/auth.AccessController.
 type registryACL struct {
-	// Users is the cluster users service.
-	Users users.Identity
+	// Authenticator is the request authentication service.
+	Authenticator users.Authenticator
 	// FieldLogger is used for logging.
 	logrus.FieldLogger
 }
 
 func newACL(parameters map[string]interface{}) (auth.AccessController, error) {
-	usersI, ok := parameters["users"]
+	authI, ok := parameters["authenticator"]
 	if !ok {
-		return nil, trace.BadParameter("missing Users: %v", parameters)
+		return nil, trace.BadParameter("missing Authenticator: %v", parameters)
 	}
-	users, ok := usersI.(users.Identity)
+	auth, ok := authI.(users.Authenticator)
 	if !ok {
-		return nil, trace.BadParameter("expected users.Identity, got: %T", usersI)
+		return nil, trace.BadParameter("expected users.Authenticator, got: %T", authI)
 	}
 	return &registryACL{
-		Users:       users,
-		FieldLogger: logrus.WithField(trace.Component, "reg.acl"),
+		Authenticator: auth,
+		FieldLogger:   logrus.WithField(trace.Component, "reg.acl"),
 	}, nil
 }
 
@@ -83,25 +82,17 @@ func (acl *registryACL) Authorized(ctx context.Context, access ...auth.Access) (
 			return nil, trace.AccessDenied("pushing images directly is not supported")
 		}
 	}
-	request, err := context.GetRequest(ctx)
+	r, err := context.GetRequest(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authCreds, err := httplib.ParseAuthHeaders(request)
+	w, err := context.GetResponseWriter(ctx)
 	if err != nil {
-		// Basic auth credentials weren't provided which may indicate this is
-		// the initial "docker login" command so return a challenge to prompt
-		// Docker to send us the credentials.
-		return nil, &challenge{
-			realm: "basic-realm",
-			err:   auth.ErrInvalidCredential,
-		}
+		return nil, trace.Wrap(err)
 	}
-	acl.Debugf("Auth request: %v %#v.", authCreds.Username, access)
-	user, _, err := acl.Users.AuthenticateUser(*authCreds)
+	authResult, err := acl.Authenticator.Authenticate(w, r)
 	if err != nil {
-		// Basic auth credentials were provided but incorrect.
-		acl.Warnf("Auth failure: %v %v.", authCreds.Username, err)
+		acl.WithError(err).Warn("Authentication error.")
 		return nil, &challenge{
 			realm: "basic-realm",
 			err:   auth.ErrAuthenticationFailure,
@@ -109,8 +100,33 @@ func (acl *registryACL) Authorized(ctx context.Context, access ...auth.Access) (
 	}
 	// Authentication success, populate the context with the user info.
 	return auth.WithUser(ctx, auth.UserInfo{
-		Name: user.GetName(),
+		Name: authResult.User.GetName(),
 	}), nil
+
+	// authCreds, err := httplib.ParseAuthHeaders(request)
+	// if err != nil {
+	// 	// Basic auth credentials weren't provided which may indicate this is
+	// 	// the initial "docker login" command so return a challenge to prompt
+	// 	// Docker to send us the credentials.
+	// 	return nil, &challenge{
+	// 		realm: "basic-realm",
+	// 		err:   auth.ErrInvalidCredential,
+	// 	}
+	// }
+	// acl.Debugf("Auth request: %v %#v.", authCreds.Username, access)
+	// user, _, err := acl.Users.AuthenticateUser(*authCreds)
+	// if err != nil {
+	// 	// Basic auth credentials were provided but incorrect.
+	// 	acl.Warnf("Auth failure: %v %v.", authCreds.Username, err)
+	// 	return nil, &challenge{
+	// 		realm: "basic-realm",
+	// 		err:   auth.ErrAuthenticationFailure,
+	// 	}
+	// }
+	// // Authentication success, populate the context with the user info.
+	// return auth.WithUser(ctx, auth.UserInfo{
+	// 	Name: user.GetName(),
+	// }), nil
 }
 
 // challenge is a special error type which is used by registry to send
