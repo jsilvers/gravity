@@ -151,6 +151,7 @@ func (p *Process) proxySettings() client.ProxySettings {
 		SSH: client.SSHProxySettings{
 			ListenAddr: p.teleportConfig.Proxy.SSHAddr.String(),
 		},
+		// TODO: Only enable these in Hub mode.
 		Features: []string{
 			client.FeatureDocker,
 			client.FeatureHelm,

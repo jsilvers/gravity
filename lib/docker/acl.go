@@ -67,12 +67,8 @@ func newACL(parameters map[string]interface{}) (auth.AccessController, error) {
 // Authorized controls access to the registry based on the authentication
 // information provided in the request.
 //
-// It authenticates the user against the cluster's identity service using
-// basic auth credentials provided by "docker" CLI in a request.
-//
-// On auth failure (for example, if credentials weren't provided) a special
-// "challenge" error type is returned which is converted to a 401 HTTP response
-// and recognized by Docker client so it can send credentials.
+// It authenticates the user based on the x509 client certificate extracted from
+// the request by the auth middleware and attached to the request context.
 //
 // On success returns context that includes authenticated user information.
 func (acl *registryACL) Authorized(ctx context.Context, access ...auth.Access) (context.Context, error) {
@@ -102,31 +98,6 @@ func (acl *registryACL) Authorized(ctx context.Context, access ...auth.Access) (
 	return auth.WithUser(ctx, auth.UserInfo{
 		Name: authResult.User.GetName(),
 	}), nil
-
-	// authCreds, err := httplib.ParseAuthHeaders(request)
-	// if err != nil {
-	// 	// Basic auth credentials weren't provided which may indicate this is
-	// 	// the initial "docker login" command so return a challenge to prompt
-	// 	// Docker to send us the credentials.
-	// 	return nil, &challenge{
-	// 		realm: "basic-realm",
-	// 		err:   auth.ErrInvalidCredential,
-	// 	}
-	// }
-	// acl.Debugf("Auth request: %v %#v.", authCreds.Username, access)
-	// user, _, err := acl.Users.AuthenticateUser(*authCreds)
-	// if err != nil {
-	// 	// Basic auth credentials were provided but incorrect.
-	// 	acl.Warnf("Auth failure: %v %v.", authCreds.Username, err)
-	// 	return nil, &challenge{
-	// 		realm: "basic-realm",
-	// 		err:   auth.ErrAuthenticationFailure,
-	// 	}
-	// }
-	// // Authentication success, populate the context with the user info.
-	// return auth.WithUser(ctx, auth.UserInfo{
-	// 	Name: user.GetName(),
-	// }), nil
 }
 
 // challenge is a special error type which is used by registry to send
